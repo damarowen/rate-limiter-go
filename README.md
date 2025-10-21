@@ -97,9 +97,43 @@ limiter := rateLimiter.NewRateLimiter(
 
 # API Usage Example
 ```
-// Using the middleware
-http.Handle("/api", middleware.RateLimitMiddleware(limiter)(yourHandler))
+Test Basic Tier:
+GET http://localhost:8080/api/hello
+Header: X-API-Key: basic-user-123
 
+Response (1st-10th request):
+{
+  "message": "Hello! You are within rate limits.",
+  "time": "2025-01-15T10:30:00Z",
+  "user_tier": "basic",
+  "rate_limit": "10 requests/minute"
+}
+
+Response (11th request - Rate Limited):
+{
+  "error": "rate limit exceeded",
+  "tier": "basic",
+  "limit": "10 requests/minute"
+}
+
+Test Premium Tier:
+GET http://localhost:8080/api/hello
+Header: X-API-Key: premium-api-key
+
+Response (1st-100th request):
+{
+  "message": "Hello! You are within rate limits.",
+  "time": "2025-01-15T10:30:00Z",
+  "user_tier": "premium",
+  "rate_limit": "100 requests/minute"
+}
+
+Response (101st request - Rate Limited):
+{
+  "error": "rate limit exceeded",
+  "tier": "premium",
+  "limit": "100 requests/minute"
+}
 ```
 
 ## Per-Client Configuration ✨
