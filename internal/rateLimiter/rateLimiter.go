@@ -10,6 +10,7 @@ type RateLimiter struct {
 	premiumClients  map[string]Strategy
 	requests        chan request
 	config          chan configRequest
+	resets          chan string // Add this
 }
 
 type request struct {
@@ -28,6 +29,7 @@ func NewRateLimiter(defaultStrategy Strategy) *RateLimiter {
 		premiumClients:  make(map[string]Strategy),
 		requests:        make(chan request),
 		config:          make(chan configRequest),
+		resets:          make(chan string),
 	}
 	go rl.process()
 	return rl
@@ -51,39 +53,36 @@ func (rl *RateLimiter) Allow(key string) bool {
 	return <-response // Blocks until response arr
 }
 
+func (rl *RateLimiter) Reset(key string) {
+	rl.resets <- key // Send to process goroutine
+}
+
 // listening requests and config changes
 func (rl *RateLimiter) process() {
 	for {
 		select {
 		// Only ONE goroutine receives and processes
+		//Handles dynamic configuration of premium clients
+		//allows adding premium users with custom rate limits while the server is running.
 		case cfg := <-rl.config:
 			// Handle premium client configuration
-			rl.premiumClients[cfg.key] = cfg.strategy
+
+			rl.premiumClients[cfg.key] = cfg.strategy // ← Write
 
 		case req := <-rl.requests:
 			// Handle rate limit check
 			if strategy, isPremium := rl.premiumClients[req.key]; isPremium {
-				req.response <- strategy.Allow(req.key)
+				req.response <- strategy.Allow(req.key) // ← Read
 			} else {
 				//Sends results from process() back to Allow()
-				req.response <- rl.defaultStrategy.Allow(req.key)
+				req.response <- rl.defaultStrategy.Allow(req.key) // ← Read
+			}
+		case key := <-rl.resets:
+			if strategy, isPremium := rl.premiumClients[key]; isPremium {
+				strategy.Reset(key)
+			} else {
+				rl.defaultStrategy.Reset(key)
 			}
 		}
-	}
-}
-
-func (rl *RateLimiter) Reset(key string) {
-	response := make(chan bool)
-	rl.requests <- request{
-		key:      "RESET:" + key,
-		response: response,
-	}
-	<-response
-
-	// Delegate to strategy
-	if strategy, isPremium := rl.premiumClients[key]; isPremium {
-		strategy.Reset(key)
-	} else {
-		rl.defaultStrategy.Reset(key)
 	}
 }

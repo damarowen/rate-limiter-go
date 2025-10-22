@@ -13,7 +13,6 @@ A simple rate limiter implementation in Go without external dependencies.
 ### 📊 Multiple Rate Limiting Strategies
 - ✅ **Fixed Window Counter** - Simple, memory efficient
 - ✅ **Sliding Window Log** - Accurate, smooth limiting
-- ✅ **Token Bucket** - Handles traffic bursts gracefully
 
 ### 🔑 Flexible Client Identification
 - ✅ IP-based rate limiting
@@ -85,15 +84,6 @@ internal/ for implementation details (not importable by external packages)
 middleware/ for HTTP integration layer
 rateLimiter/ for core business logic
 
-# Configuration
-````
-// Example configuration
-limiter := rateLimiter.NewRateLimiter(
-    100,              // max requests
-    time.Minute,      // time window
-    yourStrategy,     // rate limiting strategy
-)
-````
 
 # API Usage Example
 ```
@@ -185,37 +175,7 @@ curl -H "X-API-Key: any-other-key" http://localhost:8080/api
    How it works: Counts requests within a sliding time window
    Pros: Accurate, smooth rate limiting
    Cons: Higher memory usage for storing timestamps
-3. Token Bucket
-   Description: Tokens are added at a fixed rate, requests consume tokens
-   How it works: Allows bursts up to bucket capacity
-   Pros: Handles bursts gracefully
-   Cons: More complex implementation
 
-### Burst Traffic Handling Example
-
-#### Token Bucket Strategy (Recommended for Bursts)
-```
-// Allow burst of 100 requests, refill at 50/second
-strategy := NewTokenBucketStrategy(100, 50)
-
-// Client can immediately send 100 requests (burst)
-for i := 0; i < 100; i++ {
-    strategy.Allow("client1") // ✅ All allowed
-}
-
-// Further requests limited to 50/second refill rate
-strategy.Allow("client1") // ❌ Blocked until tokens refill
-
-// After 2 seconds: 100 tokens refilled
-time.Sleep(2 * time.Second)
-// Can burst again
-
-Benefits:
-Handles legitimate traffic spikes
-Prevents sustained abuse
-Smooth token replenishment
-Configurable burst capac
-```
 
 # Request Processing Flow
 
@@ -227,7 +187,7 @@ Server receives request on :8080
 RateLimitMiddleware intercepts
    ↓
 ┌─────────────────────────────────────────┐
-│ 1. Extract API Key from X-API-Key header│
+│ 1. Extract API Key from X-API-Key header│ ← Layer 1: HTTP Gateway
 └─────────────────────────────────────────┘
    ↓
 ┌─────────────────────────────────────────┐
@@ -241,7 +201,7 @@ RateLimitMiddleware intercepts
    ↓
 ┌─────────────────────────────────────────┐
 │ 4. process() checks premiumClients map  │
-│    • If key = "premium-api-key"         │
+│    • If key = "premium-api-key"         │ ← Layer 2: Router/Orchestrator
 │      → Use premium strategy (100/min)   │
 │    • Otherwise                          │
 │      → Use default strategy (10/min)    │
@@ -249,7 +209,7 @@ RateLimitMiddleware intercepts
    ↓
 ┌─────────────────────────────────────────┐
 │ 5. Strategy.Allow() checks buckets map  │
-│    • Get or create bucket for this key  │
+│    • Get or create bucket for this key  │  ← Layer 3: Business Logic
 │    • Check if window expired            │
 │    • Increment count                    │
 │    • Return true/false                  │
@@ -276,7 +236,22 @@ RateLimitMiddleware intercepts
       Return 429 Too Many Requests
         ↓
       Send JSON error response
+      
+      
+Middleware → HTTP concerns
+RateLimiter → Routing concerns  
+Strategy → Algorithm concerns
 
+HTTP Request → Middleware → RateLimiter → Strategy
+                    ↓           ↓                    ↓
+                Extract    Route to strategy    Implement rate limiting algorithm
+                identifier
+                    ↓           ↓                                        ↓
+                 Panggil      Manage premium vs default clients     Track request counts per client
+                 Allow(),
+                 send http
+                 
+      
 ```
 
 

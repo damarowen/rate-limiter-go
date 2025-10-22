@@ -16,13 +16,14 @@ func isPremiumUser(apiKey string) bool {
 }
 
 func main() {
-	// Create default rate limiter: 10 requests per minute (basic users)
+	// Create default rate limiter: 10 requests per minute (basic users), default strategy
 	defaultStrategy := rateLimiter.NewFixedWindowStrategy(10, time.Minute)
 	limiter := rateLimiter.NewRateLimiter(defaultStrategy)
 
-	// Configure premium tier: 100 requests per minute
+	// Configure premium tier: 100 requests per minute, second strategy
 	premiumStrategy := rateLimiter.NewFixedWindowStrategy(100, time.Minute)
-	limiter.SetPremiumClient("premium-api-key", premiumStrategy)
+	apiPremiumKey := "premium-api-key"
+	limiter.SetPremiumClient(apiPremiumKey, premiumStrategy)
 
 	// Setup HTTP handlers
 	mux := http.NewServeMux()
@@ -51,13 +52,11 @@ func main() {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	mux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
-		response := map[string]string{
-			"status": "healthy",
-			"time":   time.Now().Format(time.RFC3339),
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+	// Example: Admin endpoint to reset a user's rate limit
+	mux.HandleFunc("/admin/reset", func(w http.ResponseWriter, r *http.Request) {
+		apiKey := r.URL.Query().Get("api_key")
+		limiter.Reset(apiKey)
+		w.WriteHeader(http.StatusOK)
 	})
 
 	// Apply rate limiting middleware

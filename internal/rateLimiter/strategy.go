@@ -21,10 +21,10 @@ type FixedWindowStrategy struct {
 // NewFixedWindowStrategy creates a new fixed window strategy
 func NewFixedWindowStrategy(limit int, window time.Duration) *FixedWindowStrategy {
 	fws := &FixedWindowStrategy{
-		limit:   limit,
-		window:  window,
-		buckets: make(map[string]*ClientBucket),
-		ops:     make(chan func(), 100),
+		limit:   limit,                          // Max requests (e.g., 10)
+		window:  window,                         // Time window (e.g., 1 minute)
+		buckets: make(map[string]*ClientBucket), // Empty map for tracking clients, key string value *ClientBucket
+		ops:     make(chan func(), 100),         // Buffered channel with 100 capacity, if  reached > 100 it will block
 	}
 
 	go fws.run()
@@ -96,6 +96,7 @@ func (fws *FixedWindowStrategy) cleanup() {
 		fws.ops <- func() {
 			now := time.Now()
 			for key, bucket := range fws.buckets {
+				//Deletes buckets inactive for 2 × window (e.g., 2 minutes)
 				if now.Sub(bucket.windowStart) >= fws.window*2 {
 					delete(fws.buckets, key)
 				}
