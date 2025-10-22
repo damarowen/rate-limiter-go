@@ -217,6 +217,68 @@ Smooth token replenishment
 Configurable burst capac
 ```
 
+# Request Processing Flow
+
+```
+Client sends HTTP request
+   ↓
+Server receives request on :8080
+   ↓
+RateLimitMiddleware intercepts
+   ↓
+┌─────────────────────────────────────────┐
+│ 1. Extract API Key from X-API-Key header│
+└─────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────┐
+│ 2. Call limiter.Allow(apiKey)           │
+└─────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────┐
+│ 3. RateLimiter.Allow() sends request    │
+│    to process() goroutine via channel   │
+└─────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────┐
+│ 4. process() checks premiumClients map  │
+│    • If key = "premium-api-key"         │
+│      → Use premium strategy (100/min)   │
+│    • Otherwise                          │
+│      → Use default strategy (10/min)    │
+└─────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────┐
+│ 5. Strategy.Allow() checks buckets map  │
+│    • Get or create bucket for this key  │
+│    • Check if window expired            │
+│    • Increment count                    │
+│    • Return true/false                  │
+└─────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────┐
+│ 6. Send result back via response channel│
+└─────────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────────┐
+│ 7. Middleware receives result           │
+└─────────────────────────────────────────┘
+   ↓
+   ├─ If ALLOWED (true)
+   │    ↓
+   │  Continue to handler (/api/hello or /api/status)
+   │    ↓
+   │  Handler executes
+   │    ↓
+   │  Response sent with 200 OK
+   │
+   └─ If DENIED (false)
+        ↓
+      Return 429 Too Many Requests
+        ↓
+      Send JSON error response
+
+```
+
 
 # Assumptions
 1. Single Instance: Current implementation assumes a single server instance. For distributed systems, you'll need a shared cache (e.g., Redis).

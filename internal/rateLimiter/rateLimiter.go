@@ -9,7 +9,7 @@ type RateLimiter struct {
 	defaultStrategy Strategy
 	premiumClients  map[string]Strategy
 	requests        chan request
-	config          chan configRequest // Add this
+	config          chan configRequest
 }
 
 type request struct {
@@ -27,13 +27,13 @@ func NewRateLimiter(defaultStrategy Strategy) *RateLimiter {
 		defaultStrategy: defaultStrategy,
 		premiumClients:  make(map[string]Strategy),
 		requests:        make(chan request),
-		config:          make(chan configRequest), // Add this
+		config:          make(chan configRequest),
 	}
 	go rl.process()
 	return rl
 }
 
-// FIXED: Now thread-safe
+// thread-safe , Multiple goroutines can safely send
 func (rl *RateLimiter) SetPremiumClient(key string, strategy Strategy) {
 	rl.config <- configRequest{
 		key:      key,
@@ -43,17 +43,19 @@ func (rl *RateLimiter) SetPremiumClient(key string, strategy Strategy) {
 
 func (rl *RateLimiter) Allow(key string) bool {
 	response := make(chan bool)
+	//Sends requests from Allow() to process()
 	rl.requests <- request{
 		key:      key,
 		response: response,
 	}
-	return <-response
+	return <-response // Blocks until response arr
 }
 
-// FIXED: All map access in single goroutine
+// listening requests and config changes
 func (rl *RateLimiter) process() {
 	for {
 		select {
+		// Only ONE goroutine receives and processes
 		case cfg := <-rl.config:
 			// Handle premium client configuration
 			rl.premiumClients[cfg.key] = cfg.strategy
@@ -63,6 +65,7 @@ func (rl *RateLimiter) process() {
 			if strategy, isPremium := rl.premiumClients[req.key]; isPremium {
 				req.response <- strategy.Allow(req.key)
 			} else {
+				//Sends results from process() back to Allow()
 				req.response <- rl.defaultStrategy.Allow(req.key)
 			}
 		}

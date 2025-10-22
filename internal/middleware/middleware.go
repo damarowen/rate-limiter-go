@@ -13,6 +13,7 @@ func RateLimitMiddleware(rl *rateLimiter.RateLimiter, keyExtractor func(*http.Re
 			key := keyExtractor(r)
 
 			if !rl.Allow(key) {
+				// "If the rate limiter does NOT allow this key, then block the request"
 				log.Printf("Rate limit exceeded - key: %s, path: %s, method: %s", key, r.URL.Path, r.Method)
 				w.Header().Set("X-RateLimit-Exceeded", "true")
 				http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
