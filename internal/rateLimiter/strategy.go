@@ -49,6 +49,7 @@ func (fws *FixedWindowStrategy) Allow(key string) bool {
 		bucket, exists := fws.buckets[key]
 
 		if !exists {
+			//initiate jika tidak ada
 			fws.buckets[key] = &ClientBucket{
 				count:       1,
 				windowStart: now,
@@ -57,13 +58,16 @@ func (fws *FixedWindowStrategy) Allow(key string) bool {
 			return
 		}
 
+		//Jika klien ada, periksa apakah jendela waktunya sudah lewat
 		if now.Sub(bucket.windowStart) >= fws.window {
+			//reset
 			bucket.count = 1
 			bucket.windowStart = now
 			result <- true
 			return
 		}
 
+		//Jika jendela belum kadaluarsa:
 		if bucket.count < fws.limit {
 			bucket.count++
 			result <- true
