@@ -1,6 +1,7 @@
 package rateLimiter
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -45,6 +46,14 @@ func (fws *FixedWindowStrategy) Allow(key string) bool {
 	result := make(chan bool, 1)
 
 	fws.ops <- func() {
+		// Add this to see all buckets
+		fmt.Println("=== Current Buckets ===")
+		for k, b := range fws.buckets {
+			fmt.Printf("Key: %s | Count: %d | Window: %s\n",
+				k, b.count, b.windowStart.Format("15:04:05"))
+		}
+		fmt.Println("=======================")
+
 		now := time.Now()
 		bucket, exists := fws.buckets[key]
 

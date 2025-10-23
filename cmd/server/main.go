@@ -25,10 +25,20 @@ func main() {
 	apiPremiumKey := "premium-api-key"
 	limiter.SetPremiumClient(apiPremiumKey, premiumStrategy)
 
-	// Setup HTTP handlers
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/api/hello", func(w http.ResponseWriter, r *http.Request) {
+	// Admin routes (NO rate limiting)
+	mux.HandleFunc("/admin/reset", func(w http.ResponseWriter, r *http.Request) {
+		apiKey := r.URL.Query().Get("api_key")
+		limiter.Reset(apiKey)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Rate limit reset for: " + apiKey))
+	})
+
+	// API routes (WITH rate limiting)
+	apiMux := http.NewServeMux()
+
+	apiMux.HandleFunc("/api/hello", func(w http.ResponseWriter, r *http.Request) {
 		apiKey := r.Header.Get("X-API-Key")
 		isPremium := isPremiumUser(apiKey)
 
@@ -52,22 +62,15 @@ func main() {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	// Example: Admin endpoint to reset a user's rate limit
-	mux.HandleFunc("/admin/reset", func(w http.ResponseWriter, r *http.Request) {
-		apiKey := r.URL.Query().Get("api_key")
-		limiter.Reset(apiKey)
-		w.WriteHeader(http.StatusOK)
-	})
-
-	// Apply rate limiting middleware
-	handler := middleware.RateLimitMiddleware(limiter, middleware.APIKeyExtractor)(mux)
+	// Apply rate limiting ONLY to /api/* routes
+	mux.Handle("/api/", middleware.RateLimitMiddleware(limiter, middleware.APIKeyExtractor)(apiMux))
 
 	log.Println("Server starting on :8080")
 	log.Println("Rate limits:")
 	log.Println("  - Basic users: 10 requests/minute")
 	log.Println("  - Premium users (premium-api-key): 100 requests/minute")
 
-	if err := http.ListenAndServe(":8080", handler); err != nil {
+	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatal(err)
 	}
 }
