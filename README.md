@@ -48,8 +48,8 @@ A simple rate limiter implementation in Go without external dependencies.
 ```bash
 git clone <repository-url>
 cd rate-limiter
-go mod download
-go build -o rate-limiter
+go mod tidy
+go build -o rate-limiter ./cmd/server
 ./rate-limiter
 ```
 
