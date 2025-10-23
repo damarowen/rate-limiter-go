@@ -265,8 +265,6 @@ HTTP Request → Middleware → RateLimiter → Strategy
 1. No Persistence: Rate limit data is lost on server restart
 2. Single Instance Only: Not designed for distributed deployments without modification
 3. Memory Growth: Long-running instances may need periodic cleanup of old entries
-4. No Built-in Cleanup: Old client records are not automatically removed (can be added)
-5. Fixed Time Windows: Some strategies use fixed time windows which can have edge cases
 
 # Docker Run
 
