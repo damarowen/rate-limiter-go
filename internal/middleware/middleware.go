@@ -7,7 +7,7 @@ import (
 )
 
 // RateLimitMiddleware creates HTTP middleware for rate limiting
-func RateLimitMiddleware(rl *rateLimiter.RateLimiter, keyExtractor func(*http.Request) string) func(http.Handler) http.Handler {
+func RateLimitMiddleware(rl *rateLimiter.RedisRateLimiter, keyExtractor func(*http.Request) string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			key := keyExtractor(r)

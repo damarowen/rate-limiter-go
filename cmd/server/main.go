@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"rate-limiter/internal/middleware"
 	"rate-limiter/internal/rateLimiter"
 )
@@ -17,13 +19,31 @@ func isPremiumUser(apiKey string) bool {
 
 func main() {
 	// Create default rate limiter: 10 requests per minute (basic users), default strategy
-	defaultStrategy := rateLimiter.NewFixedWindowStrategy(10, time.Minute)
-	limiter := rateLimiter.NewRateLimiter(defaultStrategy)
+	//defaultStrategy := rateLimiter.NewFixedWindowStrategy(10, time.Minute)
+	//limiter := rateLimiter.NewRateLimiter(defaultStrategy)
+
+	// Setup Redis client
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "NTiwdhuwvzQpOCBxS", // No password by default
+		DB:       0,                   // Default DB
+	})
+
+	// Test Redis connection
+	ctx := context.Background()
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		log.Fatal("Failed to connect to Redis:", err)
+	}
+	log.Println("Connected to Redis successfully")
+
+	// Create Redis-backed rate limiter
+	// Default: 10 requests per minute for basic users
+	limiter := rateLimiter.NewRedisRateLimiter(redisClient, 10, time.Minute)
 
 	// Configure premium tier: 100 requests per minute, second strategy
-	premiumStrategy := rateLimiter.NewFixedWindowStrategy(100, time.Minute)
+	//premiumStrategy := rateLimiter.NewFixedWindowStrategy(100, time.Minute)
 	apiPremiumKey := "premium-api-key"
-	limiter.SetPremiumClient(apiPremiumKey, premiumStrategy)
+	limiter.SetPremiumClient(apiPremiumKey, 100, time.Minute)
 
 	mux := http.NewServeMux()
 
