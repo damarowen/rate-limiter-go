@@ -165,16 +165,19 @@ curl -H "X-API-Key: any-other-key" http://localhost:8080/api
 ````
 
 # Rate Limiting Algorithms
-1. Fixed Window Counter
-   Description: Counts requests in fixed time windows
-   How it works: Resets the counter at the start of each time window
-   Pros: Simple, memory efficient
-   Cons: Can allow bursts at window boundaries
-2. Sliding Window Log
-   Description: Maintains a log of request timestamps
-   How it works: Counts requests within a sliding time window
-   Pros: Accurate, smooth rate limiting
-   Cons: Higher memory usage for storing timestamps
+
+### Fixed Window Counter
+
+- **Description:** Counts requests in fixed time windows
+- **How it works:** Resets the counter at the start of each time window
+- **Pros:**
+    - Simple implementation
+    - Low memory usage (only stores count + timestamp)
+    - Fast O(1) lookup
+- **Cons:**
+    - Can allow bursts at window boundaries
+    - Example: If window = 1 minute, user can make 10 requests at 00:59 and another 10 at 01:01 (20 requests in 2 seconds)
+
 
 
 # Request Processing Flow
@@ -265,6 +268,21 @@ HTTP Request → Middleware → RateLimiter → Strategy
 1. No Persistence: Rate limit data is lost on server restart
 2. Single Instance Only: Not designed for distributed deployments without modification
 3. Memory Growth: Long-running instances may need periodic cleanup of old entries
+
+
+## Future Improvements
+
+With more time, I would implement:
+
+1. **Sliding Window Log Algorithm**
+    - More accurate rate limiting
+    - No burst at window boundaries
+    - Trade-off: Higher memory usage
+
+2. **Token Bucket Algorithm**
+    - Allow controlled bursts
+    - Better for bursty traffic patterns
+
 
 # Docker Run
 

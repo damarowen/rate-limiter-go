@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"rate-limiter/internal/middleware"
@@ -12,7 +13,11 @@ import (
 
 // Helper to check if user is premium
 func isPremiumUser(apiKey string) bool {
-	return apiKey == "premium-api-key"
+	if strings.Contains(apiKey, "premium") {
+		return true
+	} else {
+		return false
+	}
 }
 
 func main() {

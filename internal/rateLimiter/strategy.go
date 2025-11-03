@@ -2,6 +2,7 @@ package rateLimiter
 
 import (
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -29,19 +30,23 @@ func NewFixedWindowStrategy(limit int, window time.Duration) *FixedWindowStrateg
 	}
 
 	go fws.run()
-	go fws.cleanup()
+	go fws.cleanup() //to prevent memory leak
 
 	return fws
 }
 
 // run processes all operations sequentially
 func (fws *FixedWindowStrategy) run() {
+	//Setiap kali Allow() atau Reset() dipanggil, mereka tidak langsung mengubah map.
+	//Mereka "mengirimkan pekerjaan" (dalam bentuk anonymous function) ke channel ops.
+	// listening
 	for op := range fws.ops {
 		op()
 	}
 }
 
 // Allow checks if a request is allowed
+// use Fixed Window Counter Algorithm
 func (fws *FixedWindowStrategy) Allow(key string) bool {
 	result := make(chan bool, 1)
 
@@ -68,6 +73,8 @@ func (fws *FixedWindowStrategy) Allow(key string) bool {
 		}
 
 		//Jika klien ada, periksa apakah jendela waktunya sudah lewat
+		//Waktu Sekarang - Waktu Mulai Jendela
+		//eg (10:30:01 - 10:00:00) >= 30 minutes
 		if now.Sub(bucket.windowStart) >= fws.window {
 			//reset
 			bucket.count = 1
@@ -83,6 +90,7 @@ func (fws *FixedWindowStrategy) Allow(key string) bool {
 			return
 		}
 
+		log.Printf("Request for key %s exceeded rate limit", key)
 		result <- false
 	}
 
@@ -98,6 +106,7 @@ func (fws *FixedWindowStrategy) Reset(key string) {
 
 // cleanup removes expired buckets periodically
 func (fws *FixedWindowStrategy) cleanup() {
+	//Membuat timer yang akan "berdetak" setiap fws.window (misal: setiap 1 menit).
 	ticker := time.NewTicker(fws.window)
 	defer ticker.Stop()
 
@@ -106,6 +115,7 @@ func (fws *FixedWindowStrategy) cleanup() {
 			now := time.Now()
 			for key, bucket := range fws.buckets {
 				//Deletes buckets inactive for 2 × window (e.g., 2 minutes)
+				// di kali 2 supaya tidak agressive dan lebih aman
 				if now.Sub(bucket.windowStart) >= fws.window*2 {
 					delete(fws.buckets, key)
 				}

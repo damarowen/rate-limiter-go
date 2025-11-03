@@ -1,5 +1,11 @@
 package rateLimiter
 
+import (
+	"log"
+	"strings"
+	"time"
+)
+
 type Strategy interface {
 	Allow(key string) bool
 	Reset(key string)
@@ -50,7 +56,7 @@ func (rl *RateLimiter) Allow(key string) bool {
 		key:      key,
 		response: response,
 	}
-	return <-response // Blocks until response arr
+	return <-response // Blocks until response arrived
 }
 
 func (rl *RateLimiter) Reset(key string) {
@@ -66,16 +72,24 @@ func (rl *RateLimiter) process() {
 		//allows adding premium users with custom rate limits while the server is running.
 		case cfg := <-rl.config:
 			// Handle premium client configuration
-
-			rl.premiumClients[cfg.key] = cfg.strategy // ← Write
-
+			if strings.Contains(cfg.key, "premium") {
+				rl.premiumClients[cfg.key] = cfg.strategy
+				log.Printf("Registered premium client: %s", cfg.key)
+			}
 		case req := <-rl.requests:
-			// Handle rate limit check
-			if strategy, isPremium := rl.premiumClients[req.key]; isPremium {
-				req.response <- strategy.Allow(req.key) // ← Read
+			// Cek apakah key mengandung "premium"
+			if strings.Contains(req.key, "premium") {
+				// Jika belum terdaftar, buat strategy premium baru
+				if _, exists := rl.premiumClients[req.key]; !exists {
+					premiumStrategy := NewFixedWindowStrategy(100, time.Minute)
+					rl.premiumClients[req.key] = premiumStrategy
+					log.Printf("Auto-registered premium client: %s", req.key)
+				}
+				req.response <- rl.premiumClients[req.key].Allow(req.key)
+			} else if strategy, isPremium := rl.premiumClients[req.key]; isPremium {
+				req.response <- strategy.Allow(req.key)
 			} else {
-				//Sends results from process() back to Allow()
-				req.response <- rl.defaultStrategy.Allow(req.key) // ← Read
+				req.response <- rl.defaultStrategy.Allow(req.key)
 			}
 		case key := <-rl.resets:
 			if strategy, isPremium := rl.premiumClients[key]; isPremium {

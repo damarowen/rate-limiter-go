@@ -11,8 +11,6 @@ func RateLimitMiddleware(rl *rateLimiter.RateLimiter, keyExtractor func(*http.Re
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			key := keyExtractor(r)
-			log.Println(key, " trying to access ", r.URL.Path)
-
 			if !rl.Allow(key) {
 				// "If the rate limiter does NOT allow this key, then block the request"
 				log.Printf("Rate limit exceeded - key: %s, path: %s, method: %s", key, r.URL.Path, r.Method)
