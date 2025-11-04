@@ -284,6 +284,17 @@ With more time, I would implement:
     - Better for bursty traffic patterns
 
 
+# Test Thread Safe
+
+````
+go test -race -v ./internal/rateLimiter/...
+
+Codebase ini thread-safe karena:
+Shared state (maps) hanya diakses 1 goroutine (process())
+Communication: All via channels (requests, config, resets)
+Sequential processing (requests diproses 1-by-1 di queue
+````
+
 # Docker Run
 
 ````
